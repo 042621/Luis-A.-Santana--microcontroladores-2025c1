@@ -1,0 +1,226 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include "FreeRTOS.h"
+#include "task.h"
+
+// Definición de estados
+#define ESTADO_INICIAL     0
+#define ESTADO_ERROR       1
+#define ESTADO_ABRIENDO    2
+#define ESTADO_ABIERTO     3
+#define ESTADO_CERRANDO    4
+#define ESTADO_CERRADO     5
+#define ESTADO_DETENIDO    6
+#define ESTADO_DESCONOCIDO 7
+
+// Definición de señales de E/S
+#define LM_ACTIVO    1
+#define LM_NOACTIVO  0
+#define MOTOR_OFF    0
+#define MOTOR_ON     1
+#define LAMP_OFF     0
+#define LAMP_ON      1
+
+// Prototipos de las funciones de cada estado
+int Func_ESTADO_INICIAL(void);
+int Func_ESTADO_ERROR(void);
+int Func_ESTADO_ABRIENDO(void);
+int Func_ESTADO_ABIERTO(void);
+int Func_ESTADO_CERRANDO(void);
+int Func_ESTADO_CERRADO(void);
+int Func_ESTADO_DETENIDO(void);
+int Func_ESTADO_DESCONOCIDO(void);
+
+// Variables globales para controlar los estados
+int ESTADO_SIGUIENTE = ESTADO_INICIAL;
+int ESTADO_ANTERIOR = ESTADO_INICIAL;
+int ESTADO_ACTUAL   = ESTADO_INICIAL;
+
+// Estructura para simular las señales del sistema
+struct SYSTEM_IO {
+    unsigned int lsc:1;       // limit switch puerta cerrada
+    unsigned int lsa:1;       // limit switch puerta abierta
+    unsigned int ftc:1;
+    unsigned int ma:1;        // motor de apertura
+    unsigned int mc:1;        // motor de cierre
+    unsigned int lamp:1;
+    unsigned int keya:1;
+    unsigned int keyc:1;
+    unsigned int pp:1;
+    unsigned int dpsw_fd:2;   // dip switch para función desconocida
+    unsigned int dpsw_pp:2;
+} io;
+
+// Función para inicializar las señales
+void Inicializar_Senales(void) {
+    io.lsc = LM_NOACTIVO;
+    io.lsa = LM_NOACTIVO;
+    io.ma  = MOTOR_OFF;
+    io.mc  = MOTOR_OFF;
+    io.lamp = LAMP_OFF;
+}
+
+// Tarea de la máquina de estados
+void Task_Maquina_Estados(void *pvParameters) {
+    while (1) {
+        switch (ESTADO_SIGUIENTE) {
+            case ESTADO_INICIAL:
+                ESTADO_SIGUIENTE = Func_ESTADO_INICIAL();
+                break;
+            case ESTADO_ERROR:
+                ESTADO_SIGUIENTE = Func_ESTADO_ERROR();
+                break;
+            case ESTADO_ABRIENDO:
+                ESTADO_SIGUIENTE = Func_ESTADO_ABRIENDO();
+                break;
+            case ESTADO_ABIERTO:
+                ESTADO_SIGUIENTE = Func_ESTADO_ABIERTO();
+                break;
+            case ESTADO_CERRANDO:
+                ESTADO_SIGUIENTE = Func_ESTADO_CERRANDO();
+                break;
+            case ESTADO_CERRADO:
+                ESTADO_SIGUIENTE = Func_ESTADO_CERRADO();
+                break;
+            case ESTADO_DETENIDO:
+                ESTADO_SIGUIENTE = Func_ESTADO_DETENIDO();
+                break;
+            case ESTADO_DESCONOCIDO:
+                ESTADO_SIGUIENTE = Func_ESTADO_DESCONOCIDO();
+                break;
+            default:
+                ESTADO_SIGUIENTE = ESTADO_ERROR;
+                break;
+        }
+        vTaskDelay(pdMS_TO_TICKS(100)); // Retardo entre ciclos de la máquina de estados
+    }
+}
+
+// Función para el estado INICIAL
+int Func_ESTADO_INICIAL(void) {
+    ESTADO_ANTERIOR = ESTADO_ACTUAL;
+    ESTADO_ACTUAL   = ESTADO_INICIAL;
+
+    // Inicializar las señales
+    io.ma   = MOTOR_OFF;
+    io.mc   = MOTOR_OFF;
+    io.lamp = LAMP_OFF;
+
+    printf("Estado Inicial\n");
+
+    // Condiciones de transición:
+    if (io.lsa == LM_ACTIVO && io.lsc == LM_NOACTIVO) {
+        return ESTADO_ABIERTO;
+    }
+    if (io.lsa == LM_ACTIVO && io.lsc == LM_ACTIVO) {
+        return ESTADO_ERROR;
+    }
+    if (io.lsa == LM_NOACTIVO && io.lsc == LM_NOACTIVO) {
+        return ESTADO_DESCONOCIDO;
+    }
+    return ESTADO_ERROR;
+}
+
+// Función para el estado ERROR
+int Func_ESTADO_ERROR(void) {
+    ESTADO_ANTERIOR = ESTADO_ACTUAL;
+    ESTADO_ACTUAL   = ESTADO_ERROR;
+
+    printf("Estado Error!\n");
+    // Se puede implementar una rutina de recuperación; por ahora, se retorna al estado inicial
+    return ESTADO_INICIAL;
+}
+
+// Función para el estado ABRIENDO
+int Func_ESTADO_ABRIENDO(void) {
+    ESTADO_ANTERIOR = ESTADO_ACTUAL;
+    ESTADO_ACTUAL   = ESTADO_ABRIENDO;
+
+    printf("Estado Abriendo\n");
+
+    // Activar el motor para abrir
+    io.ma = MOTOR_ON;
+    // Simulación: una vez completada la acción, se desactiva el motor
+    io.ma = MOTOR_OFF;
+
+    // Transición al estado ABIERTO
+    return ESTADO_ABIERTO;
+}
+
+// Función para el estado ABIERTO
+int Func_ESTADO_ABIERTO(void) {
+    ESTADO_ANTERIOR = ESTADO_ACTUAL;
+    ESTADO_ACTUAL   = ESTADO_ABIERTO;
+
+    printf("Estado Abierto\n");
+
+    // Se puede esperar una señal o comando para cerrar la puerta
+    // Para la simulación, se transita directamente al estado de cierre
+    return ESTADO_CERRANDO;
+}
+
+// Función para el estado CERRANDO
+int Func_ESTADO_CERRANDO(void) {
+    ESTADO_ANTERIOR = ESTADO_ACTUAL;
+    ESTADO_ACTUAL   = ESTADO_CERRANDO;
+
+    printf("Estado Cerrando\n");
+
+    // Activar el motor de cierre
+    io.mc = MOTOR_ON;
+    // Simulación: una vez completada la acción, se desactiva el motor
+    io.mc = MOTOR_OFF;
+
+    // Transición al estado CERRADO
+    return ESTADO_CERRADO;
+}
+
+// Función para el estado CERRADO
+int Func_ESTADO_CERRADO(void) {
+    ESTADO_ANTERIOR = ESTADO_ACTUAL;
+    ESTADO_ACTUAL   = ESTADO_CERRADO;
+
+    printf("Estado Cerrado\n");
+
+    // En este estado, podemos simular una acción adicional
+    return ESTADO_DETENIDO;
+}
+
+// Función para el estado DETENIDO
+int Func_ESTADO_DETENIDO(void) {
+    ESTADO_ANTERIOR = ESTADO_ACTUAL;
+    ESTADO_ACTUAL   = ESTADO_DETENIDO;
+
+    printf("Estado Detenido\n");
+
+    // Después de detenerse, regresa al estado inicial
+    return ESTADO_INICIAL;
+}
+
+// Función para el estado DESCONOCIDO
+int Func_ESTADO_DESCONOCIDO(void) {
+    ESTADO_ANTERIOR = ESTADO_ACTUAL;
+    ESTADO_ACTUAL   = ESTADO_DESCONOCIDO;
+
+    printf("Estado Desconocido\n");
+
+    // Intentar abrir la puerta en caso de error
+    return ESTADO_ABRIENDO;
+}
+
+// Main para inicializar FreeRTOS y las tareas
+int main(void) {
+    // Inicialización de señales y FreeRTOS
+    Inicializar_Senales();
+
+    // Crear tarea de la máquina de estados
+    xTaskCreate(Task_Maquina_Estados, "Maquina_Estados", 1000, NULL, 1, NULL);
+
+    // Iniciar el scheduler de FreeRTOS
+    vTaskStartScheduler();
+
+    // En caso de que el scheduler falle
+    for(;;);
+
+    return 0;
+}
