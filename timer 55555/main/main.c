@@ -60,5 +60,8 @@ void app_main() {
     button_queue = xQueueCreate(10, sizeof(int));  
     blink_timer = xTimerCreate("Blink Timer", pdMS_TO_TICKS(100), pdTRUE, NULL, blink_callback);  
 
-    xTaskCreate(button_task, "Button Task", 2048, NULL, 10, NULL);  
+    xTaskCreate(button_task, "Button Task", 2048, NULL, 10, NULL); 
+    
+    //fin app_main
+    
 }
